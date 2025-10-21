@@ -1,0 +1,18 @@
+{
+  "cwd": "/home/mikaurban/studienarbeit",
+  "type": [
+    "web"
+  ],
+  "name": "DERMIS-AI",
+  "framework": "react",
+  "template": "single-view",
+  "cssPreProcessor": "scss",
+  "bundler": "vite",
+  "theming": {
+    "customColor": true,
+    "color": "#0185f5",
+    "darkMode": false,
+    "iconFonts": true
+  },
+  "customBuild": false
+}
