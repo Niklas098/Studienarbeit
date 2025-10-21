@@ -3,6 +3,9 @@ import HomePage from '../pages/home.jsx';
 import AboutPage from '../pages/about.jsx';
 import FormPage from '../pages/form.jsx';
 import BodyMapPage from '../pages/bodymap.jsx';
+import InfoPage from '../pages/info.jsx';
+import CameraPage from '../pages/camera.jsx';
+import ProfilePage from '../pages/profile.jsx';
 
 
 import DynamicRoutePage from '../pages/dynamic-route.jsx';
@@ -26,8 +29,19 @@ var routes = [
     path: '/bodymap/',
     component: BodyMapPage,
   },
+  {
+    path: '/info/',
+    component: InfoPage,
+  },
+  {
+    path: '/camera/',
+    component: CameraPage,
+  },
+  {
+    path: '/profile/',
+    component: ProfilePage,
+  },
   
-
   {
     path: '/dynamic-route/blog/:blogId/post/:postId/',
     component: DynamicRoutePage,

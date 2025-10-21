@@ -1,1 +1,32 @@
-/* Your app custom styles here */
+/* Alle Tabs gleich breit & zentriert */
+.toolbar-bottom.tabbar .toolbar-inner {
+  padding-left: 0; padding-right: 0;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.tabbar .tab-link {
+  flex: 1 1 0;                 /* gleiche Breite */
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  min-width: 0; margin: 0;
+}
+
+/* Kamera-Tab: Kreis im Tab, nichts ragt raus */
+.tabbar .camera-tab .camera-circle {
+  display: inline-flex;
+  width: 40px; height: 40px;   /* im Toolbar-Höhenlimit bleiben */
+  border-radius: 50%;
+  border: 2px solid var(--f7-theme-color);
+  background: var(--f7-bars-bg-color);
+  align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,.12);
+  margin-bottom: 2px;          /* bisschen Abstand zum Label */
+}
+.tabbar .camera-tab .icon { font-size: 20px; line-height: 1; }
+
+/* Optional: Labels etwas kompakter */
+.tabbar .tabbar-label { font-size: 12px; }
+
+/* Falls der aktive "Pill"-Hintergrund stört, entschärfen oder entfernen: */
+:root {
+  /* --f7-tabbar-link-active-bg-color: transparent; */
+}

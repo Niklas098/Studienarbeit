@@ -28,16 +28,22 @@ const HomePage = () => (
       </NavRight>
       <NavTitleLarge>DERMIS-AI</NavTitleLarge>
     </Navbar>
+
     {/* Toolbar */}
     <Toolbar tabbar labels bottom>
         <Link href="/bodymap/" iconF7="person_alt" text="My body" tabLinkActive />
-        <Link href="/messages/" iconF7="envelope" text="Messages" />
+        <Link href="/" iconF7="envelope" text="Menü" />
 
-        <Link href="/camera/" className="camera-link" iconF7="camera" text="Scan" />
+        <Link href="/camera/" className="tab-link camera-tab">
+          <span className="camera-circle">
+            <i className="icon f7-icons">camera</i>
+          </span>
+        </Link>
 
         <Link href="/info/" iconF7="info" text="Info" />
-        <Link href="/account/" iconF7="ellipsis_vertical" text="Account" />
+        <Link href="/profile/" iconF7="ellipsis_vertical" text="Profile" />
     </Toolbar>
+    
     {/* Page content */}
     <Block>
       <p>Here is your blank Framework7 app. Let's see what we have here.</p>

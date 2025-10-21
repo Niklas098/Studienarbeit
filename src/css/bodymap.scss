@@ -1,0 +1,90 @@
+/* Seite eindeutig ansprechen */
+.page[data-name="bodymap"] {
+  /* --- Buttons direkt unter die Navbar, ohne Extra-Abstand --- */
+  .no-margin { margin: 0 !important; }
+  .no-padding { padding: 0 !important; }
+  .segment-top { margin: 0 0 .5rem 0; }
+
+  /* iOS safe area unten, damit die Toolbar nichts überdeckt */
+  .safe-edges { padding-bottom: env(safe-area-inset-bottom); }
+
+  /* --- Bild zentrieren --- */
+  /* 1) Falls du KEINE Extra-Klasse am Container hast (aktueller Code mit "flex …"): 
+     Wir überschreiben einfach den 1. div-Container NACH dem Button-Block. */
+  .page-content > .block + div {
+    display: flex !important;
+    justify-content: center !important;   /* horizontal */
+    align-items: flex-start !important;   /* oben ausgerichtet; nimm center für vertikal mittig */
+    padding: 0 16px;
+    min-height: 40vh;                     /* optional: etwas Höhe, damit es nicht „klebt“ */
+  }
+
+  /* 2) Falls du eine eigene Klasse verwenden willst (robuster):
+     <div className="image-wrap"> ... */
+  .image-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 0 16px;
+    min-height: 40vh;
+  }
+
+  /* Bild selbst */
+  .body-image,
+  .page-content img {        /* greift auch ohne .body-image-Klasse */
+    display: block;          /* wichtig, damit margin auto wirkt */
+    max-width: 80%;
+    height: auto;
+    margin: 0 auto;          /* Fallback-Zentrierung */
+    object-fit: contain;
+    user-select: none;
+  }
+}
+
+/* runder Kamera-Button mittig leicht angehoben */
+.tabbar .camera-link {
+  position: relative;
+  top: 2px;              /* Höhe hier feinjustieren (-6 bis -16px) */
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid var(--f7-theme-color);
+  background: var(--f7-bars-bg-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 16px rgba(0,0,0,.12);
+}
+.tabbar .camera-link .icon { font-size: 22px; line-height: 1; }
+.tabbar .camera-link .tabbar-label { display: none; }
+
+/* aktive Tab-Hinterlegung transparent machen */
+:root {
+  --f7-tabbar-link-active-bg-color: transparent;  /* kein Pill-Hintergrund */
+}
+
+/* falls der Browser noch was cached: sicherheitshalber */
+.tabbar .tab-link-active { background: transparent !important; }
+
+/* Button absolut in der Tabbar mittig platzieren */
+.toolbar-bottom.tabbar {
+  position: fixed;      /* wichtig */
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.tabbar .camera-link {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -5%); /* X mittig, Y leicht nach oben – Wert anpassen */
+  bottom: calc(env(safe-area-inset-bottom) + 8px);
+  width: 56px; height: 56px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Icon-Größe ggf. kleiner */
+.tabbar .camera-link .icon { font-size: 22px; line-height: 1; }
+
+/* Label ausblenden, damit’s wirklich rund bleibt */
+.tabbar .camera-link .tabbar-label { display: none; }
