@@ -24,7 +24,6 @@ import {
   BlockFooter
 } from 'framework7-react';
 
-
 import routes from '../js/routes';
 import store from '../js/store';
 
@@ -36,56 +35,51 @@ const MyApp = () => {
   // Framework7 Parameters
   const f7params = {
     name: 'DERMIS-AI', // App name
-      theme: 'auto', // Automatic theme detection
-      colors: {
-        primary: '#0185f5',
-      },
+    theme: 'auto', // Automatic theme detection
+    colors: {
+      primary: '#0185f5',
+    },
 
-
-
-      // App store
-      store: store,
-      // App routes
-      routes: routes,
+    // App store
+    store: store,
+    // App routes
+    routes: routes,
   };
+
   const alertLoginData = () => {
     f7.dialog.alert('Username: ' + username + '<br>Password: ' + password, () => {
       f7.loginScreen.close();
     });
-  }
+  };
+
   f7ready(() => {
-
-
     // Call F7 APIs here
   });
 
   return (
-    <App { ...f7params }>
+    <App {...f7params}>
+      {/* Left panel with cover effect*/}
+      <Panel left cover dark>
+        <View>
+          <Page>
+            <Navbar title="Left Panel" />
+            <Block>Left panel content goes here</Block>
+          </Page>
+        </View>
+      </Panel>
 
-        {/* Left panel with cover effect*/}
-        <Panel left cover dark>
-          <View>
-            <Page>
-              <Navbar title="Left Panel"/>
-              <Block>Left panel content goes here</Block>
-            </Page>
-          </View>
-        </Panel>
+      {/* Right panel with reveal effect*/}
+      <Panel right reveal dark>
+        <View>
+          <Page>
+            <Navbar title="Right Panel" />
+            <Block>Right panel content goes here</Block>
+          </Page>
+        </View>
+      </Panel>
 
-
-        {/* Right panel with reveal effect*/}
-        <Panel right reveal dark>
-          <View>
-            <Page>
-              <Navbar title="Right Panel"/>
-              <Block>Right panel content goes here</Block>
-            </Page>
-          </View>
-        </Panel>
-
-
-        {/* Your main view, should have "view-main" class */}
-        <View main className="safe-areas" url="/" />
+      {/* Your main view, should have "view-main" class */}
+      <View main className="safe-areas" url="/" />
 
       {/* Popup */}
       <Popup id="my-popup">
@@ -132,8 +126,17 @@ const MyApp = () => {
           </Page>
         </View>
       </LoginScreen>
-
     </App>
-  )
-}
+  );
+};
+
 export default MyApp;
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/service-worker.js')
+      .then(() => console.log('SW registered'))
+      .catch(err => console.error('SW registration failed', err));
+  });
+}
