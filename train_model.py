@@ -1,6 +1,7 @@
 # ============================================================
-# ISIC 2019 (Kaggle) + PyTorch/timm — EfficientNet-Lite4 (B4)
+# ISIC 2019 (Kaggle) + PyTorch/timm — EfficientNet-Lite2
 # Head-Warmup (3 Ep.) + Fine-Tuning (25 Ep.) + Metrics + Checkpoints (Option 1)
+# Variant C: Save checkpoints automatically to Google Drive
 # ============================================================
 
 # -------------------- 0) Install deps --------------------
@@ -9,12 +10,16 @@
 # CPU-only alternative:
 # !pip -q install torch torchvision torchaudio
 
-import os, glob, zipfile, json, random
+import os, glob, zipfile, json, random, datetime
 import numpy as np, pandas as pd, torch, timm
 from PIL import Image
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset, DataLoader
 from collections import Counter
+
+# -------------------- 0.5) Mount Google Drive (Colab) --------------------
+from google.colab import drive
+drive.mount('/content/drive')
 
 # -------------------- 1) Repro --------------------
 SEED = 42
@@ -25,7 +30,7 @@ if torch.cuda.is_available():
 # -------------------- 2) Kaggle credentials --------------------
 # IMPORTANT: use a NEW key; do NOT share it
 KAGGLE_USERNAME = "eliashab"
-KAGGLE_KEY      = "PASTE_YOUR_NEW_KEY_HERE"  # <-- DO NOT paste secrets into chat logs
+KAGGLE_KEY      = "KGAT_ed6c631b1caccff7493fabdfb8965498"  # <-- paste in Colab ONLY (avoid posting keys)
 
 os.makedirs("/root/.kaggle", exist_ok=True)
 with open("/root/.kaggle/kaggle.json", "w") as f:
@@ -116,17 +121,15 @@ train_df, val_df = train_test_split(
 # -------------------- 8) timm transforms --------------------
 from timm.data import resolve_model_data_config, create_transform
 
-# Some timm versions use "efficientnet_lite4", others "tf_efficientnet_lite4"
 def pick_model_name():
-    preferred = ["efficientnet_lite4", "tf_efficientnet_lite4"]
-    available = set(timm.list_models("*lite4*"))
+    preferred = ["efficientnet_lite2", "tf_efficientnet_lite2"]
+    available = set(timm.list_models("*lite2*"))
     for m in preferred:
         if m in available:
             return m
-    return "efficientnet_lite4"
+    return "efficientnet_lite2"
 
-# Use the name you chose (keep as-is)
-model_name = "tf_efficientnet_lite4"
+model_name = "tf_efficientnet_lite2"
 print("Using model_name:", model_name)
 
 _dummy = timm.create_model(model_name, pretrained=True, num_classes=num_classes)
@@ -140,7 +143,6 @@ train_tfms = create_transform(
     re_prob=0.2, re_mode="pixel", re_count=1
 )
 val_tfms = create_transform(**data_config, is_training=False)
-
 print("Model data_config:", data_config)
 
 # -------------------- 9) Dataset/DataLoader --------------------
@@ -161,7 +163,7 @@ class CsvImageDataset(Dataset):
 train_ds = CsvImageDataset(train_df, train_tfms)
 val_ds   = CsvImageDataset(val_df,   val_tfms)
 
-BATCH = 16  # Lite4 is heavier; reduce if OOM
+BATCH = 16
 nw = max(2, (os.cpu_count() or 4)//2)
 
 train_loader = DataLoader(
@@ -195,7 +197,6 @@ print("Device:", device)
 
 model = timm.create_model(model_name, pretrained=True, num_classes=num_classes).to(device)
 criterion = torch.nn.CrossEntropyLoss(weight=weights.to(device))
-
 scaler = torch.amp.GradScaler('cuda', enabled=(device.type == "cuda"))
 
 def run_epoch(loader, optimizer=None, train=True):
@@ -242,7 +243,7 @@ if not head_params:
 optimizer_head = torch.optim.AdamW(head_params, lr=3e-4, weight_decay=1e-4)
 
 WARMUP_EPOCHS = 3
-print("\n=== PHASE A: Head-Warmup (Lite4) ===")
+print("\n=== PHASE A: Head-Warmup (Lite2) ===")
 for epoch in range(1, WARMUP_EPOCHS + 1):
     tr_loss, tr_acc = run_epoch(train_loader, optimizer=optimizer_head, train=True)
     with torch.no_grad():
@@ -270,14 +271,16 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, mode="min", factor=0.5, patience=2
 )
 
-# ---- Option 1: Save a checkpoint EVERY epoch (state_dict + optimizer + scaler) ----
-save_dir = "checkpoints_per_epoch"
+# ---- Variant C: Save checkpoints to Google Drive ----
+run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+save_dir = f"/content/drive/MyDrive/ISIC_Lite2_Checkpoints/run_{run_id}"
 os.makedirs(save_dir, exist_ok=True)
+print("Saving checkpoints to:", save_dir)
 
 best_val = float("inf")
 EPOCHS = 25
 
-print("\n=== PHASE B: Fine-Tuning (Lite4) ===")
+print("\n=== PHASE B: Fine-Tuning (Lite2) ===")
 for epoch in range(1, EPOCHS + 1):
     tr_loss, tr_acc = run_epoch(train_loader, optimizer=optimizer, train=True)
     with torch.no_grad():
@@ -289,7 +292,7 @@ for epoch in range(1, EPOCHS + 1):
           f"val_loss {va_loss:.4f} acc {va_acc:.3f}")
 
     # Save every epoch checkpoint
-    epoch_ckpt_path = os.path.join(save_dir, f"efficientnet_lite4_epoch_{epoch:02d}.pt")
+    epoch_ckpt_path = os.path.join(save_dir, f"efficientnet_lite2_epoch_{epoch:02d}.pt")
     torch.save(
         {
             "epoch": epoch,
@@ -311,10 +314,10 @@ for epoch in range(1, EPOCHS + 1):
     )
     print(f"✓ Saved epoch checkpoint -> {epoch_ckpt_path}")
 
-    # Additionally maintain a "best" pointer file (optional but handy)
+    # Additionally maintain a "best" checkpoint
     if va_loss < best_val:
         best_val = va_loss
-        best_path = os.path.join(save_dir, "efficientnet_lite4_best.pt")
+        best_path = os.path.join(save_dir, "efficientnet_lite2_best.pt")
         torch.save(
             {
                 "epoch": epoch,
@@ -345,8 +348,8 @@ from sklearn.metrics import (
 )
 
 # Load best checkpoint (preferred). If not present, fall back to last epoch checkpoint.
-best_ckpt_path = os.path.join(save_dir, "efficientnet_lite4_best.pt")
-last_ckpt_path = os.path.join(save_dir, f"efficientnet_lite4_epoch_{EPOCHS:02d}.pt")
+best_ckpt_path = os.path.join(save_dir, "efficientnet_lite2_best.pt")
+last_ckpt_path = os.path.join(save_dir, f"efficientnet_lite2_epoch_{EPOCHS:02d}.pt")
 
 load_path = best_ckpt_path if os.path.exists(best_ckpt_path) else last_ckpt_path
 if os.path.exists(load_path):
@@ -384,13 +387,21 @@ weight_f1 = f1_score(y_true, y_pred, average="weighted", zero_division=0)
 cm = confusion_matrix(y_true, y_pred, labels=range(num_classes))
 cm_df = pd.DataFrame(cm, index=classes, columns=classes)
 
-print("\n===== VALIDATION METRICS (Lite4) =====")
+print("\n===== VALIDATION METRICS (Lite2) =====")
 print(f"Balanced Accuracy : {bal_acc:.4f}")
 print(f"Macro F1          : {macro_f1:.4f}")
 print(f"Weighted F1       : {weight_f1:.4f}")
 print("\nConfusion Matrix:\n", cm_df)
+
+# IMPORTANT FIX: ensure report includes all classes even if some have zero support in val
 print("\nClassification Report:\n",
-      classification_report(y_true, y_pred, target_names=classes, digits=3, zero_division=0))
+      classification_report(
+          y_true, y_pred,
+          labels=list(range(num_classes)),
+          target_names=classes,
+          digits=3,
+          zero_division=0
+      ))
 
 # Optional: per-class PR-AUC (OvR)
 y_true_ovr = np.eye(num_classes)[y_true]
@@ -400,8 +411,8 @@ print("\nPer-class PR-AUC:")
 for k in classes:
     print(f"{k:>28s}: {pr_aucs[k]:.3f}")
 
-# -------- Optional: Save a final "export" checkpoint (same format as above) --------
-final_export_path = os.path.join(save_dir, "efficientnet_lite4_final_export.pt")
+# -------- Save a final "export" checkpoint (same format as above) --------
+final_export_path = os.path.join(save_dir, "efficientnet_lite2_final_export.pt")
 torch.save(
     {
         "epoch": ckpt.get("epoch", EPOCHS) if "ckpt" in locals() else EPOCHS,
@@ -415,3 +426,6 @@ torch.save(
     final_export_path
 )
 print(f"✓ Final export checkpoint saved -> {final_export_path}")
+
+print("\nDONE. Checkpoints are in Google Drive at:")
+print(save_dir)
