@@ -1,0 +1,110 @@
+{
+  "onnx": {
+    "path": "/content/drive/MyDrive/Lite0_Checkpoints/run_20260301_090432/efficientnet_lite0.onnx",
+    "ir_version": 8,
+    "opset_imports": {
+      "ai.onnx": 17
+    },
+    "inputs": [
+      {
+        "name": "input",
+        "shape": [
+          "batch",
+          3,
+          224,
+          224
+        ],
+        "layout_hint": "NCHW"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "logits",
+        "shape": [
+          "batch",
+          7
+        ],
+        "layout_hint": null
+      }
+    ]
+  },
+  "classes": {
+    "path": "/content/drive/MyDrive/Lite0_Checkpoints/run_20260301_090432/classes.json",
+    "num_classes": 7,
+    "classes": [
+      "akiec",
+      "bcc",
+      "bkl",
+      "df",
+      "mel",
+      "nv",
+      "vasc"
+    ],
+    "index_to_class": {
+      "0": "akiec",
+      "1": "bcc",
+      "2": "bkl",
+      "3": "df",
+      "4": "mel",
+      "5": "nv",
+      "6": "vasc"
+    },
+    "class_to_index": {
+      "akiec": 0,
+      "bcc": 1,
+      "bkl": 2,
+      "df": 3,
+      "mel": 4,
+      "nv": 5,
+      "vasc": 6
+    }
+  },
+  "preprocess": {
+    "path": "/content/drive/MyDrive/Lite0_Checkpoints/run_20260301_090432/preprocess.json",
+    "input_size_CHW": [
+      3,
+      224,
+      224
+    ],
+    "mean_RGB": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "std_RGB": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "scale": "pixel/255.0 (expected)",
+    "color_order": "RGB (expected)",
+    "normalize_formula": "x_norm = (x/255 - mean) / std"
+  },
+  "onnxruntime": {
+    "providers": [
+      "CPUExecutionProvider"
+    ],
+    "inputs": [
+      {
+        "name": "input",
+        "shape": [
+          "batch",
+          3,
+          224,
+          224
+        ],
+        "type": "tensor(float)"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "logits",
+        "shape": [
+          "batch",
+          7
+        ],
+        "type": "tensor(float)"
+      }
+    ]
+  }
+}
