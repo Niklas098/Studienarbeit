@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0d3b2d" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <title>Skin Cancer Screening PWA</title>
+  </head>
+  <body>
+    <main class="app">
+      <section class="panel panel-hero">
+        <p class="kicker">AI-Powered Dermoscopy Assist</p>
+        <h1>Skin Cancer Screening</h1>
+        <p class="subtitle">Offline ONNX inference (EfficientNet-Lite1)</p>
+        <p id="onlineState" class="badge">Checking network state...</p>
+        <p class="warning">
+          For research support only. This is not a medical diagnosis.
+        </p>
+      </section>
+
+      <section class="panel panel-upload">
+        <label for="imageInput" class="uploadLabel">Choose lesion image</label>
+        <input id="imageInput" type="file" accept="image/*" capture="environment" />
+        <p id="status" class="status">Initializing...</p>
+      </section>
+
+      <section class="panel panel-preview previewPanel">
+        <img id="preview" alt="Selected skin image preview" />
+      </section>
+
+      <section class="panel panel-result">
+        <h2>Result</h2>
+        <p id="risk" class="risk">No prediction yet.</p>
+        <ol id="predictions"></ol>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

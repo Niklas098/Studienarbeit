@@ -1,0 +1,36 @@
+{
+  "modelPath": "/models/efficientnet_lite1.onnx",
+  "inputSize": 240,
+  "inputLayout": "NCHW",
+  "colorOrder": "RGB",
+  "inputName": "input",
+  "outputName": "logits",
+  "labels": [
+    "akiec",
+    "bcc",
+    "bkl",
+    "df",
+    "mel",
+    "nv",
+    "vasc"
+  ],
+  "positiveLabels": [
+    "akiec",
+    "bcc",
+    "mel"
+  ],
+  "normalization": {
+    "scale": 255,
+    "mean": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "std": [
+      0.5,
+      0.5,
+      0.5
+    ]
+  },
+  "threshold": 0.5
+}
