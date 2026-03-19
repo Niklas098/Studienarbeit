@@ -1,20 +1,24 @@
-#Beispielaufruf: python evaluate_onnx.py  --model_path "/home/fabio/AIApplication/Studienarbeit/ISIC_NEW/EfficientNet Light/Lite3/efficientnet_lite3.onnx"   --csv_path /home/fabio/AIApplication/test.csv   --images_dir /home/fabio/AIApplication/test   --model_type efficientnet   --output_csv predictions.csv   --metrics_csv metrics_summary.csv   --confusion_csv confusion_matrix.csv   --per_class_csv per_class_metrics.csv --resize_mode resize
-#danach plot_evaluation.py laufen lassen für auswertung
 import os
+import json
 import argparse
+from dataclasses import dataclass
+from typing import Optional
+
 import numpy as np
 import pandas as pd
 from PIL import Image
 import onnxruntime as ort
+import tkinter as tk
+from tkinter import filedialog
 
 
 DEFAULT_CLASS_NAMES = ["akiec", "bcc", "bkl", "df", "mel", "nv", "vasc"]
 DEFAULT_MALIGNANT_LABELS = ["akiec", "bcc", "mel"]
 
 
-def build_image_path(images_dir, image_id):
-    return os.path.join(images_dir, f"{image_id}.jpg")
-
+# ============================================================
+# Helpers
+# ============================================================
 
 def safe_div(numerator, denominator):
     return float(numerator) / float(denominator) if denominator else 0.0
@@ -24,91 +28,11 @@ def parse_comma_list(value, default_values):
     if value is None:
         return list(default_values)
     values = [v.strip() for v in value.split(",") if v.strip()]
-    if not values:
-        return list(default_values)
-    return values
+    return values if values else list(default_values)
 
 
-def get_preprocess_mode(model_type, override=None):
-    if override is not None:
-        return override
-
-    if model_type == "efficientnet":
-        return "0_1"
-    if model_type == "mobilenet":
-        return "minus1_1"
-    if model_type == "custom":
-        raise ValueError(
-            "Für --model_type custom musst du zusätzlich --preprocess_mode angeben."
-        )
-
-    raise ValueError(f"Unbekannter model_type: {model_type}")
-
-
-def resize_with_padding(img, size, pad_color=(0, 0, 0)):
-    w, h = img.size
-    scale = min(size / w, size / h)
-    new_w = max(1, int(round(w * scale)))
-    new_h = max(1, int(round(h * scale)))
-
-    img = img.resize((new_w, new_h), Image.BILINEAR)
-
-    canvas = Image.new("RGB", (size, size), pad_color)
-    paste_x = (size - new_w) // 2
-    paste_y = (size - new_h) // 2
-    canvas.paste(img, (paste_x, paste_y))
-    return canvas
-
-
-def resize_and_center_crop(img, size):
-    w, h = img.size
-    scale = size / min(w, h)
-    new_w = max(1, int(round(w * scale)))
-    new_h = max(1, int(round(h * scale)))
-
-    img = img.resize((new_w, new_h), Image.BILINEAR)
-
-    left = (new_w - size) // 2
-    top = (new_h - size) // 2
-    right = left + size
-    bottom = top + size
-
-    return img.crop((left, top, right, bottom))
-
-
-def preprocess_image(path, img_size, preprocess_mode="0_1", resize_mode="pad"):
-    img = Image.open(path).convert("RGB")
-
-    if resize_mode == "pad":
-        img = resize_with_padding(img, img_size)
-    elif resize_mode == "center_crop":
-        img = resize_and_center_crop(img, img_size)
-    elif resize_mode == "resize":
-        img = img.resize((img_size, img_size), Image.BILINEAR)
-    else:
-        raise ValueError(f"Unbekannter resize_mode: {resize_mode}")
-
-    x = np.asarray(img, dtype=np.float32)
-
-    if preprocess_mode == "none":
-        pass
-    elif preprocess_mode == "0_1":
-        x = x / 255.0
-    elif preprocess_mode == "minus1_1":
-        x = (x / 127.5) - 1.0
-    else:
-        raise ValueError(f"Unbekannter preprocess_mode: {preprocess_mode}")
-
-    return x.astype(np.float32)
-
-
-def infer_input_layout(input_shape):
-    if len(input_shape) == 4:
-        if input_shape[1] == 3:
-            return "NCHW"
-        if input_shape[-1] == 3:
-            return "NHWC"
-    return "NCHW"
+def build_image_path(images_dir, image_id):
+    return os.path.join(images_dir, f"{image_id}.jpg")
 
 
 def softmax_np(logits):
@@ -138,6 +62,306 @@ def convert_outputs_to_probabilities(raw_output):
 
     return softmax_np(arr.astype(np.float32))
 
+
+def load_json_if_exists(path: Optional[str]):
+    if not path:
+        return None
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return None
+
+
+def infer_input_layout(input_shape):
+    if len(input_shape) == 4:
+        if input_shape[1] == 3:
+            return "NCHW"
+        if input_shape[-1] == 3:
+            return "NHWC"
+    return "NCHW"
+
+
+def infer_square_size_from_shape(input_shape, layout):
+    if len(input_shape) != 4:
+        return None
+
+    if layout == "NCHW":
+        h, w = input_shape[2], input_shape[3]
+    else:
+        h, w = input_shape[1], input_shape[2]
+
+    if isinstance(h, int) and isinstance(w, int) and h == w:
+        return int(h)
+    return None
+
+
+def create_hidden_tk_root():
+    root = tk.Tk()
+    root.withdraw()
+    root.update()
+    return root
+
+
+def pick_directory_dialog(title, initial_path=None, required=True):
+    root = create_hidden_tk_root()
+    initialdir = initial_path if initial_path and os.path.isdir(initial_path) else None
+
+    path = filedialog.askdirectory(
+        title=title,
+        initialdir=initialdir
+    )
+    root.destroy()
+
+    if required and not path:
+        raise RuntimeError(f"Ordnerauswahl abgebrochen: {title}")
+    return path or None
+
+
+def pick_file_dialog(title, filetypes, initial_path=None, required=True):
+    root = create_hidden_tk_root()
+
+    initialdir = None
+    if initial_path:
+        if os.path.isdir(initial_path):
+            initialdir = initial_path
+        elif os.path.isfile(initial_path):
+            initialdir = os.path.dirname(initial_path)
+
+    path = filedialog.askopenfilename(
+        title=title,
+        filetypes=filetypes,
+        initialdir=initialdir
+    )
+    root.destroy()
+
+    if required and not path:
+        raise RuntimeError(f"Dateiauswahl abgebrochen: {title}")
+    return path or None
+
+
+def find_single_file_by_extensions(folder: str, extensions: tuple[str, ...]) -> Optional[str]:
+    matches = []
+    for fname in os.listdir(folder):
+        if fname.lower().endswith(extensions):
+            matches.append(os.path.join(folder, fname))
+
+    if not matches:
+        return None
+
+    matches.sort()
+    if len(matches) > 1:
+        print(f"[WARN] Mehrere Dateien mit Endung {extensions} gefunden. Verwende: {os.path.basename(matches[0])}")
+    return matches[0]
+
+
+def find_single_json_by_keywords(folder: str, keywords: list[str]) -> Optional[str]:
+    matches = []
+    for fname in os.listdir(folder):
+        lower = fname.lower()
+        if lower.endswith(".json") and all(k in lower for k in keywords):
+            matches.append(os.path.join(folder, fname))
+
+    if not matches:
+        return None
+
+    matches.sort(key=lambda p: (len(os.path.basename(p)), os.path.basename(p)))
+    if len(matches) > 1:
+        print(f"[WARN] Mehrere JSON-Dateien für {keywords} gefunden. Verwende: {os.path.basename(matches[0])}")
+    return matches[0]
+
+
+def resolve_input_paths(args):
+    """
+    Neues Verhalten:
+    1) ONNX-Ordner auswählen oder per --model_dir übergeben
+    2) darin automatisch ONNX + JSON-Dateien finden
+    3) danach separat CSV und Bilderordner auswählen
+    """
+    model_dir = args.model_dir
+    if not model_dir:
+        model_dir = pick_directory_dialog("ONNX-Modellordner auswählen", required=True)
+
+    if not os.path.isdir(model_dir):
+        raise ValueError(f"Ungültiger Modellordner: {model_dir}")
+
+    model_path = args.model_path or find_single_file_by_extensions(model_dir, (".onnx",))
+    if not model_path:
+        raise FileNotFoundError(f"Keine .onnx-Datei im Ordner gefunden: {model_dir}")
+
+    preprocess_json = args.preprocess_json or find_single_json_by_keywords(model_dir, ["preprocess"])
+    classes_json = args.classes_json or find_single_json_by_keywords(model_dir, ["class"])
+    report_json = args.report_json or find_single_json_by_keywords(model_dir, ["report"])
+
+    csv_path = args.csv_path
+    if not csv_path:
+        csv_path = pick_file_dialog(
+            title="CSV-Datei auswählen",
+            filetypes=[("CSV-Dateien", "*.csv"), ("Alle Dateien", "*.*")],
+            initial_path=model_dir,
+            required=True,
+        )
+
+    images_dir = args.images_dir
+    if not images_dir:
+        images_dir = pick_directory_dialog(
+            title="Bilderordner auswählen",
+            initial_path=os.path.dirname(csv_path) if csv_path else model_dir,
+            required=True,
+        )
+
+    args.model_dir = model_dir
+    args.model_path = model_path
+    args.preprocess_json = preprocess_json
+    args.classes_json = classes_json
+    args.report_json = report_json
+    args.csv_path = csv_path
+    args.images_dir = images_dir
+    return args
+
+
+# ============================================================
+# Metadata
+# ============================================================
+
+@dataclass
+class ModelMetadata:
+    input_size: int
+    mean: list[float]
+    std: list[float]
+    class_names: list[str]
+    input_layout: str = "NCHW"
+
+
+def load_model_metadata(
+    model_path: str,
+    session: ort.InferenceSession,
+    preprocess_json: Optional[str] = None,
+    classes_json: Optional[str] = None,
+    report_json: Optional[str] = None,
+):
+    input_meta = session.get_inputs()[0]
+    input_shape = input_meta.shape
+    input_layout = infer_input_layout(input_shape)
+
+    preprocess_data = load_json_if_exists(preprocess_json)
+    classes_data = load_json_if_exists(classes_json)
+    report_data = load_json_if_exists(report_json)
+
+    input_size = None
+    mean = None
+    std = None
+
+    # 1) bevorzugt aus preprocess.json
+    if preprocess_data:
+        if "input_size" in preprocess_data and len(preprocess_data["input_size"]) == 3:
+            input_size = int(preprocess_data["input_size"][-1])
+
+        mean = preprocess_data.get("mean")
+        std = preprocess_data.get("std")
+
+    # 2) fallback report.json
+    if report_data:
+        preprocess_block = report_data.get("preprocess", {})
+
+        if input_size is None:
+            chw = preprocess_block.get("input_size_CHW")
+            if chw and len(chw) == 3:
+                input_size = int(chw[-1])
+
+        if mean is None:
+            mean = preprocess_block.get("mean_RGB")
+        if std is None:
+            std = preprocess_block.get("std_RGB")
+
+        onnx_inputs = report_data.get("onnx", {}).get("inputs", [])
+        if onnx_inputs:
+            input_layout = onnx_inputs[0].get("layout_hint") or input_layout
+
+    # 3) fallback ONNX-Shape
+    if input_size is None:
+        input_size = infer_square_size_from_shape(input_shape, input_layout)
+
+    # 4) letzte Defaults
+    if input_size is None:
+        input_size = 224
+    if mean is None:
+        mean = [0.5, 0.5, 0.5]
+    if std is None:
+        std = [0.5, 0.5, 0.5]
+
+    # Klassen
+    if isinstance(classes_data, list) and classes_data:
+        class_names = [str(x) for x in classes_data]
+    elif isinstance(classes_data, dict) and "classes" in classes_data:
+        class_names = [str(x) for x in classes_data["classes"]]
+    else:
+        class_names = list(DEFAULT_CLASS_NAMES)
+
+    return ModelMetadata(
+        input_size=int(input_size),
+        mean=[float(x) for x in mean],
+        std=[float(x) for x in std],
+        class_names=class_names,
+        input_layout=input_layout,
+    )
+
+
+# ============================================================
+# Image preprocessing
+# ============================================================
+
+def resize_with_padding(img, size, pad_color=(0, 0, 0)):
+    w, h = img.size
+    scale = min(size / w, size / h)
+    new_w = max(1, int(round(w * scale)))
+    new_h = max(1, int(round(h * scale)))
+    img = img.resize((new_w, new_h), Image.BILINEAR)
+
+    canvas = Image.new("RGB", (size, size), pad_color)
+    paste_x = (size - new_w) // 2
+    paste_y = (size - new_h) // 2
+    canvas.paste(img, (paste_x, paste_y))
+    return canvas
+
+
+def resize_and_center_crop(img, size):
+    w, h = img.size
+    scale = size / min(w, h)
+    new_w = max(1, int(round(w * scale)))
+    new_h = max(1, int(round(h * scale)))
+    img = img.resize((new_w, new_h), Image.BILINEAR)
+
+    left = (new_w - size) // 2
+    top = (new_h - size) // 2
+    right = left + size
+    bottom = top + size
+    return img.crop((left, top, right, bottom))
+
+
+def preprocess_image(path, meta: ModelMetadata, resize_mode="resize"):
+    img = Image.open(path).convert("RGB")
+
+    if resize_mode == "pad":
+        img = resize_with_padding(img, meta.input_size)
+    elif resize_mode == "center_crop":
+        img = resize_and_center_crop(img, meta.input_size)
+    elif resize_mode == "resize":
+        img = img.resize((meta.input_size, meta.input_size), Image.BILINEAR)
+    else:
+        raise ValueError(f"Unbekannter resize_mode: {resize_mode}")
+
+    x = np.asarray(img, dtype=np.float32) / 255.0
+
+    mean = np.asarray(meta.mean, dtype=np.float32).reshape(1, 1, 3)
+    std = np.asarray(meta.std, dtype=np.float32).reshape(1, 1, 3)
+    x = (x - mean) / std
+
+    return x.astype(np.float32)
+
+
+# ============================================================
+# Metrics
+# ============================================================
 
 def compute_multiclass_metrics(y_true, y_pred):
     labels = sorted(set(y_true) | set(y_pred))
@@ -175,6 +399,7 @@ def compute_multiclass_metrics(y_true, y_pred):
             }
         )
 
+    metrics["accuracy"] = safe_div(sum(t == p for t, p in zip(y_true, y_pred)), len(y_true))
     metrics["balanced_accuracy"] = float(np.mean(recalls)) if recalls else 0.0
     metrics["macro_precision"] = float(np.mean(precisions)) if precisions else 0.0
     metrics["macro_recall"] = float(np.mean(recalls)) if recalls else 0.0
@@ -240,26 +465,31 @@ def build_confusion_matrix_df(y_true, y_pred, class_names):
     return cm
 
 
+# ============================================================
+# Main
+# ============================================================
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_path", required=True)
-    parser.add_argument("--csv_path", required=True)
-    parser.add_argument("--images_dir", required=True)
-    parser.add_argument("--model_type", required=True, choices=["efficientnet", "mobilenet", "custom"])
-    parser.add_argument("--preprocess_mode", default=None, choices=["none", "0_1", "minus1_1"])
-    parser.add_argument("--resize_mode", default="pad", choices=["pad", "center_crop", "resize"])
-    parser.add_argument("--img_size", type=int, default=300)
+
+    # Neuer zentraler Einstieg: nur Modellordner
+    parser.add_argument("--model_dir", default=None, help="Ordner mit .onnx + JSON-Dateien")
+
+    # Optional weiterhin direkt möglich
+    parser.add_argument("--model_path", default=None)
+    parser.add_argument("--csv_path", default=None)
+    parser.add_argument("--images_dir", default=None)
+
+    parser.add_argument("--preprocess_json", default=None)
+    parser.add_argument("--classes_json", default=None)
+    parser.add_argument("--report_json", default=None)
+
+    parser.add_argument("--resize_mode", default="resize", choices=["pad", "center_crop", "resize"])
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--output_csv", default="predictions.csv")
     parser.add_argument("--metrics_csv", default="metrics_summary.csv")
     parser.add_argument("--confusion_csv", default="confusion_matrix.csv")
     parser.add_argument("--per_class_csv", default="per_class_metrics.csv")
-    parser.add_argument(
-        "--class_names",
-        type=str,
-        default=",".join(DEFAULT_CLASS_NAMES),
-        help="Kommagetrennte Klassenreihenfolge des Modellausgangs",
-    )
     parser.add_argument(
         "--malignant_labels",
         type=str,
@@ -269,23 +499,45 @@ def main():
 
     args = parser.parse_args()
 
-    class_names = parse_comma_list(args.class_names, DEFAULT_CLASS_NAMES)
+    # Pfade auflösen:
+    # 1) Modellordner
+    # 2) daraus ONNX/JSONs
+    # 3) separat CSV + Bilderordner
+    args = resolve_input_paths(args)
+
     malignant_labels = set(parse_comma_list(args.malignant_labels, DEFAULT_MALIGNANT_LABELS))
-    preprocess_mode = get_preprocess_mode(args.model_type, args.preprocess_mode)
+
+    print("=== Erkannte Dateien ===")
+    print(f"Modellordner:    {args.model_dir}")
+    print(f"ONNX-Modell:     {args.model_path}")
+    print(f"preprocess.json: {args.preprocess_json}")
+    print(f"classes.json:    {args.classes_json}")
+    print(f"report.json:     {args.report_json}")
+    print(f"CSV:             {args.csv_path}")
+    print(f"Bilderordner:    {args.images_dir}")
+    print("")
 
     print("Lade ONNX-Modell...")
     session = ort.InferenceSession(args.model_path, providers=["CPUExecutionProvider"])
 
     input_meta = session.get_inputs()[0]
     input_name = input_meta.name
-    input_shape = input_meta.shape
-    input_layout = infer_input_layout(input_shape)
 
-    print("Input-Shape:", input_shape)
-    print("Input-Layout:", input_layout)
-    print("Model-Type:", args.model_type)
-    print("Preprocessing:", preprocess_mode)
-    print("Resize-Modus:", args.resize_mode)
+    meta = load_model_metadata(
+        model_path=args.model_path,
+        session=session,
+        preprocess_json=args.preprocess_json,
+        classes_json=args.classes_json,
+        report_json=args.report_json,
+    )
+
+    print("Automatisch erkannte Metadaten:")
+    print(f"  Inputgröße:   {meta.input_size}")
+    print(f"  Layout:       {meta.input_layout}")
+    print(f"  Mean:         {meta.mean}")
+    print(f"  Std:          {meta.std}")
+    print(f"  Klassen:      {meta.class_names}")
+    print(f"  Resize-Modus: {args.resize_mode}")
 
     df = pd.read_csv(args.csv_path)
 
@@ -293,12 +545,15 @@ def main():
         raise ValueError("CSV muss Spalten 'image_id' und 'dx' enthalten")
 
     df["image_path"] = df["image_id"].apply(lambda x: build_image_path(args.images_dir, x))
-
     exists = df["image_path"].apply(os.path.exists)
     df_ok = df[exists].reset_index(drop=True)
 
     if len(df_ok) == 0:
         raise RuntimeError("Keine Bilder gefunden.")
+
+    missing_count = int((~exists).sum())
+    if missing_count > 0:
+        print(f"[WARN] {missing_count} Bilder aus der CSV wurden nicht gefunden und ignoriert.")
 
     print(f"{len(df_ok)} Bilder gefunden.")
 
@@ -307,21 +562,12 @@ def main():
 
     print("Starte Prediction...")
     for i in range(0, len(paths), args.batch_size):
-        batch_paths = paths[i : i + args.batch_size]
-
-        images = [
-            preprocess_image(
-                path=p,
-                img_size=args.img_size,
-                preprocess_mode=preprocess_mode,
-                resize_mode=args.resize_mode,
-            )
-            for p in batch_paths
-        ]
+        batch_paths = paths[i:i + args.batch_size]
+        images = [preprocess_image(p, meta, resize_mode=args.resize_mode) for p in batch_paths]
 
         x = np.stack(images).astype(np.float32)
 
-        if input_layout == "NCHW":
+        if meta.input_layout == "NCHW":
             x = np.transpose(x, (0, 3, 1, 2))
 
         outputs = session.run(None, {input_name: x})
@@ -329,31 +575,30 @@ def main():
         all_probs.append(probs)
 
     preds = np.concatenate(all_probs, axis=0)
+    class_names = meta.class_names
 
     out = df_ok.copy()
 
-    if preds.ndim == 2 and preds.shape[1] > 1:
-        if preds.shape[1] != len(class_names):
-            raise ValueError(
-                f"Anzahl Klassen stimmt nicht: Modell liefert {preds.shape[1]}, "
-                f"--class_names hat {len(class_names)} Einträge."
-            )
-
-        out["pred_class_idx"] = preds.argmax(axis=1)
-        out["pred_conf"] = preds.max(axis=1)
-        out["pred_dx"] = out["pred_class_idx"].apply(lambda i: class_names[int(i)])
-
-        for i in range(preds.shape[1]):
-            out[f"p_{i}"] = preds[:, i]
-
-        for i, label in enumerate(class_names):
-            out[f"p_{label}"] = preds[:, i]
-    else:
-        out["pred"] = preds.reshape(-1)
+    if preds.ndim != 2 or preds.shape[1] <= 1:
         raise RuntimeError(
-            "Dieses Evaluationsskript erwartet Multi-Class-Outputs mit mindestens 2 Klassen "
-            "(Form: [N, C])."
+            "Dieses Evaluationsskript erwartet Multi-Class-Outputs mit mindestens 2 Klassen."
         )
+
+    if preds.shape[1] != len(class_names):
+        raise ValueError(
+            f"Anzahl Klassen stimmt nicht: Modell liefert {preds.shape[1]}, "
+            f"Metadaten enthalten {len(class_names)} Klassen."
+        )
+
+    out["pred_class_idx"] = preds.argmax(axis=1)
+    out["pred_conf"] = preds.max(axis=1)
+    out["pred_dx"] = out["pred_class_idx"].apply(lambda idx: class_names[int(idx)])
+
+    for i in range(preds.shape[1]):
+        out[f"p_{i}"] = preds[:, i]
+
+    for i, label in enumerate(class_names):
+        out[f"p_{label}"] = preds[:, i]
 
     out.to_csv(args.output_csv, index=False)
 
@@ -369,7 +614,7 @@ def main():
 
     malignant_indices = [i for i, c in enumerate(class_names) if c in malignant_labels]
     if not malignant_indices:
-        raise ValueError("Keine malignen Labels in --class_names gefunden.")
+        raise ValueError("Keine malignen Labels in class_names gefunden.")
 
     y_prob_malignant = preds[:, malignant_indices].sum(axis=1)
     malignant_metrics = compute_malignant_metrics(
