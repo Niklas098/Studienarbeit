@@ -1,0 +1,30 @@
+{
+  "model_name": "tiny_vit_5m_224.in1k",
+  "onnx_file": "tiny_vit_5m_224_in1k_best_prob.onnx",
+  "input_name": "input",
+  "output_name": "prob_positive",
+  "output_semantics": "Probability of positive class after sigmoid",
+  "classes": [
+    "negative",
+    "positive"
+  ],
+  "positive_class_index": 1,
+  "recommended_threshold": 0.38,
+  "input_size": [
+    3,
+    224,
+    224
+  ],
+  "mean": [
+    0.485,
+    0.456,
+    0.406
+  ],
+  "std": [
+    0.229,
+    0.224,
+    0.225
+  ],
+  "interpolation": "bicubic",
+  "crop_pct": 0.95
+}

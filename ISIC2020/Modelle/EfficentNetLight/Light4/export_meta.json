@@ -1,0 +1,30 @@
+{
+  "model_name": "tf_efficientnet_lite4",
+  "onnx_file": "efficientnet_lite4_best_prob.onnx",
+  "input_name": "input",
+  "output_name": "prob_positive",
+  "output_semantics": "Probability of positive class after sigmoid",
+  "classes": [
+    "negative",
+    "positive"
+  ],
+  "positive_class_index": 1,
+  "recommended_threshold": 0.27,
+  "input_size": [
+    3,
+    380,
+    380
+  ],
+  "mean": [
+    0.5,
+    0.5,
+    0.5
+  ],
+  "std": [
+    0.5,
+    0.5,
+    0.5
+  ],
+  "interpolation": "bilinear",
+  "crop_pct": 0.92
+}

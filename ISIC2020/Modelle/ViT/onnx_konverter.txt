@@ -1,0 +1,131 @@
+# ============================================================
+# ONNX Export aus gespeichertem Checkpoint
+# - lädt bestes Modell aus Drive
+# - exportiert ONNX mit Probability-Output (Sigmoid)
+# - speichert Export-Metadaten für spätere Inferenz
+# ============================================================
+
+!pip -q install onnx onnxruntime timm
+
+import os
+import json
+import torch
+import timm
+import numpy as np
+
+# -------------------- 1) Pfade --------------------
+CKPT_DIR = "/content/drive/MyDrive/TinyViT_ISIC2020_latest"
+CKPT_PATH = os.path.join(CKPT_DIR, "tiny_vit_5m_224_in1k_best.pt")
+ONNX_PATH = os.path.join(CKPT_DIR, "tiny_vit_5m_224_in1k_best_prob.onnx")
+META_PATH = os.path.join(CKPT_DIR, "export_meta.json")
+
+assert os.path.exists(CKPT_PATH), f"Checkpoint nicht gefunden: {CKPT_PATH}"
+
+# -------------------- 2) Device --------------------
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("Device:", device)
+
+# -------------------- 3) Checkpoint laden --------------------
+# -------------------- 3) Checkpoint laden --------------------
+ckpt = torch.load(CKPT_PATH, map_location=device, weights_only=False)
+
+model_name = ckpt["model_name"]
+data_config = ckpt["data_config"]
+classes = ckpt.get("classes", ["negative", "positive"])
+best_threshold = float(ckpt.get("best_threshold", 0.5))
+
+print("Model name:", model_name)
+print("Classes:", classes)
+print("Best threshold:", best_threshold)
+print("Data config:", data_config)
+
+# -------------------- 4) Modell rekonstruieren --------------------
+# Dein Training nutzt num_classes=1
+base_model = timm.create_model(
+    model_name,
+    pretrained=False,
+    num_classes=1
+).to(device)
+
+base_model.load_state_dict(ckpt["model_state_dict"])
+base_model.eval()
+
+# -------------------- 5) Wrapper: ONNX gibt Probability statt Logit aus --------------------
+class ProbModel(torch.nn.Module):
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+
+    def forward(self, x):
+        logits = self.model(x)              # Form meist [B, 1]
+        probs = torch.sigmoid(logits)       # Wahrscheinlichkeit für positive Klasse
+        return probs
+
+export_model = ProbModel(base_model).to(device)
+export_model.eval()
+
+# -------------------- 6) Dummy Input --------------------
+input_size = data_config["input_size"]   # z. B. (3, 300, 300)
+dummy = torch.randn(1, *input_size, device=device)
+
+# -------------------- 7) ONNX Export --------------------
+with torch.no_grad():
+    torch.onnx.export(
+        export_model,
+        dummy,
+        ONNX_PATH,
+        export_params=True,
+        opset_version=17,
+        do_constant_folding=True,
+        input_names=["input"],
+        output_names=["prob_positive"],
+        dynamic_axes={
+            "input": {0: "batch_size"},
+            "prob_positive": {0: "batch_size"}
+        }
+    )
+
+print("ONNX gespeichert:", ONNX_PATH)
+
+# -------------------- 8) Metadaten speichern --------------------
+export_meta = {
+    "model_name": model_name,
+    "onnx_file": os.path.basename(ONNX_PATH),
+    "input_name": "input",
+    "output_name": "prob_positive",
+    "output_semantics": "Probability of positive class after sigmoid",
+    "classes": classes,
+    "positive_class_index": 1,
+    "recommended_threshold": best_threshold,
+    "input_size": list(input_size),
+    "mean": list(data_config["mean"]),
+    "std": list(data_config["std"]),
+    "interpolation": data_config.get("interpolation", "bicubic"),
+    "crop_pct": data_config.get("crop_pct", None)
+}
+
+with open(META_PATH, "w") as f:
+    json.dump(export_meta, f, indent=2)
+
+print("Metadaten gespeichert:", META_PATH)
+
+# -------------------- 9) Optional: kurzer Test mit onnxruntime --------------------
+try:
+    import onnx
+    import onnxruntime as ort
+
+    onnx_model = onnx.load(ONNX_PATH)
+    onnx.checker.check_model(onnx_model)
+    print("ONNX-Check: OK")
+
+    ort_session = ort.InferenceSession(ONNX_PATH, providers=["CPUExecutionProvider"])
+
+    dummy_np = dummy.detach().cpu().numpy().astype(np.float32)
+    ort_out = ort_session.run(None, {"input": dummy_np})[0]
+
+    print("ONNX Runtime Test: OK")
+    print("Output shape:", ort_out.shape)
+    print("Beispiel-Output:", ort_out[:3])
+
+except Exception as e:
+    print("ONNX Runtime Test übersprungen/fehlgeschlagen:", e)

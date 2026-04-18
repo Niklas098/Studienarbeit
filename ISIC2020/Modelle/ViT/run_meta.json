@@ -1,0 +1,52 @@
+{
+  "base_dir": "/content/data",
+  "img_root": "/content/data/train",
+  "csv_path": "/content/drive/MyDrive/train_data/train.csv",
+  "model_name": "tiny_vit_5m_224.in1k",
+  "seed": 42,
+  "val_fraction": 0.2,
+  "batch_size": 64,
+  "num_workers": 8,
+  "warmup_epochs": 3,
+  "finetune_epochs": 25,
+  "early_stopping_patience": 6,
+  "use_weighted_sampler": false,
+  "base_pos_weight": 16.35,
+  "effective_pos_weight": 16.35,
+  "primary_selection_metric": "ap",
+  "min_recall_for_threshold": null,
+  "classes": [
+    "negative",
+    "positive"
+  ],
+  "data_config": {
+    "input_size": [
+      3,
+      224,
+      224
+    ],
+    "interpolation": "bicubic",
+    "mean": [
+      0.485,
+      0.456,
+      0.406
+    ],
+    "std": [
+      0.229,
+      0.224,
+      0.225
+    ],
+    "crop_pct": 0.95,
+    "crop_mode": "center"
+  },
+  "input_size_used": [
+    3,
+    224,
+    224
+  ],
+  "train_size": 7981,
+  "val_size": 2019,
+  "train_pos": 460,
+  "train_neg": 7521,
+  "bad_images_removed": 0
+}
