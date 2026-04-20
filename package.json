@@ -1,0 +1,21 @@
+{
+  "name": "image-quality-core",
+  "version": "0.1.0",
+  "description": "Offline lesion ROI, crop, and quality scoring pipeline.",
+  "type": "module",
+  "main": "src/lesionPipeline.js",
+  "scripts": {
+    "test": "node test/demo.js",
+    "start": "node test/server.js"
+  },
+  "keywords": [
+    "image-quality",
+    "computer-vision",
+    "offline",
+    "skin",
+    "lesion",
+    "analysis"
+  ],
+  "author": "",
+  "license": "MIT"
+}
