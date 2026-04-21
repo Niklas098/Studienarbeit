@@ -1,0 +1,30 @@
+{
+  "seed": 42,
+  "val_fraction": 0.2,
+  "model_name": "tf_efficientnet_lite4",
+  "batch_size": 16,
+  "num_workers": 2,
+  "warmup_epochs": 3,
+  "finetune_epochs": 25,
+  "lr_backbone": 0.0001,
+  "lr_head": 0.0003,
+  "weight_decay": 0.0001,
+  "max_class_weight": 20.0,
+  "num_classes": 7,
+  "classes": [
+    "akiec",
+    "bcc",
+    "bkl",
+    "df",
+    "mel",
+    "nv",
+    "vasc"
+  ],
+  "save_dir": "/content/drive/MyDrive/HAM10000_7class_tf_efficientnet_lite4/run_20260421_091543",
+  "image_root": "/content/data/train",
+  "csv_path": "/content/data/train.csv",
+  "missing_images_dropped": 640,
+  "bad_images_removed": 0,
+  "train_size": 7486,
+  "val_size": 1889
+}
