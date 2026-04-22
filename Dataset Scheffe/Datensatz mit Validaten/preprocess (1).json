@@ -1,0 +1,20 @@
+{
+  "model_name": "tf_efficientnet_lite4",
+  "input_size": [
+    3,
+    380,
+    380
+  ],
+  "mean": [
+    0.5,
+    0.5,
+    0.5
+  ],
+  "std": [
+    0.5,
+    0.5,
+    0.5
+  ],
+  "interpolation": "bilinear",
+  "crop_pct": 0.92
+}
